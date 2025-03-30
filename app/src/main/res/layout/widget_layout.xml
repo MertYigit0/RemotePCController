@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="@android:color/darker_gray">
+
+    <Button
+        android:id="@+id/btnWakeOnLan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Wake-on-LAN" />
+
+    <Button
+        android:id="@+id/btnShutdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Shutdown PC"
+        android:layout_marginTop="8dp"/>
+</LinearLayout>
