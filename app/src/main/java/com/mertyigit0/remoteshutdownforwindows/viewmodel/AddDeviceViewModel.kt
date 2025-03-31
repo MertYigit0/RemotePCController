@@ -1,2 +1,0 @@
-package com.mertyigit0.remoteshutdownforwindows.viewmodel
-
