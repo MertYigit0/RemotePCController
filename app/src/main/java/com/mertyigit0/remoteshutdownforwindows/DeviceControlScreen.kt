@@ -2,6 +2,7 @@ package com.mertyigit0.remoteshutdownforwindows
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -26,7 +27,6 @@ import com.mertyigit0.remoteshutdownforwindows.data.DataStoreManager
 import com.mertyigit0.remoteshutdownforwindows.viewmodel.DeviceViewModel
 import com.mertyigit0.remoteshutdownforwindows.viewmodel.DeviceViewModelFactory
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceControlScreen() {
     val context = LocalContext.current
@@ -74,7 +74,9 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
         Image(
             painter = painterResource(id = R.drawable.switc),
             contentDescription = "Power",
-            modifier = Modifier.size(100.dp)
+            modifier = Modifier
+                .size(100.dp)
+                .clickable { viewModel.shutdownPC() } // Tıklanınca ViewModel fonksiyonunu çağır
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -99,7 +101,7 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
                         Text(selectedDevice.value, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.Settings, contentDescription = "More", tint = Color.White)
+                    //Icon(Icons.Default.Settings, contentDescription = "More", tint = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
