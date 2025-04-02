@@ -10,6 +10,8 @@ import kotlinx.coroutines.launch
 import com.mertyigit0.remoteshutdownforwindows.data.DataStoreManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -41,6 +43,16 @@ class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewMode
     val wakeOnLanPort = MutableStateFlow("")
 
     init {
+        // Verileri DataStore'dan çekme işlemini burada başlatıyoruz.
+        viewModelScope.launch {
+            deviceName.value = dataStoreManager.deviceName.first() // İlk veriyi al
+            macAddress.value = dataStoreManager.macAddress.first() // İlk veriyi al
+            ipAddress.value = dataStoreManager.ipAddress.first() // İlk veriyi al
+            networkIpAddress.value = dataStoreManager.networkIpAddress.first() // İlk veriyi al
+            wakeOnLanPort.value = dataStoreManager.wakeOnLanPort.first() // İlk veriyi al
+        }
+
+        // Verilere abone olma işlemi (örneğin, değerler değişirse yeniden güncellenmesi sağlanır)
         viewModelScope.launch {
             dataStoreManager.deviceName.collect { deviceName.value = it }
             dataStoreManager.macAddress.collect { macAddress.value = it }
@@ -62,8 +74,6 @@ class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewMode
         viewModelScope.launch {
             dataStoreManager.saveDevice(computerModel)
         }
-
-
     }
 
 
@@ -190,6 +200,45 @@ class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewMode
             }
         }
     }
+
+
+
+
+    val awakeStatus = MutableStateFlow("Checking...")
+    val pingTimeMs = MutableStateFlow("--")
+
+    fun pingDevice() {
+        val ip = ipAddress.value
+        if (ip.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val startTime = System.currentTimeMillis()
+                val reachable = InetAddress.getByName(ip).isReachable(5000)
+                val endTime = System.currentTimeMillis()
+                val pingTime = (endTime - startTime).toInt()
+
+                withContext(Dispatchers.Main) {
+                    if (reachable) {
+                        awakeStatus.value = "Awake"
+                        pingTimeMs.value = "$pingTime ms"
+                    } else {
+                        awakeStatus.value = "Offline"
+                        pingTimeMs.value = "--"
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    awakeStatus.value = "Error"
+                    pingTimeMs.value = "--"
+                }
+            }
+        }
+    }
+
+
+
 
 
 }

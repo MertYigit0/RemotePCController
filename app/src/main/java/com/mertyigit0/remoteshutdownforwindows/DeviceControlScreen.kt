@@ -8,7 +8,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import com.mertyigit0.remoteshutdownforwindows.data.DataStoreManager
 import com.mertyigit0.remoteshutdownforwindows.viewmodel.DeviceViewModel
 import com.mertyigit0.remoteshutdownforwindows.viewmodel.DeviceViewModelFactory
+import kotlinx.coroutines.delay
 
 @Composable
 fun DeviceControlScreen() {
@@ -98,13 +101,28 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text("Selected Device", color = Color.LightGray, fontSize = 12.sp)
-                        Text(selectedDevice.value, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            selectedDevice.value,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     //Icon(Icons.Default.Settings, contentDescription = "More", tint = Color.White)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+
+                val awakeStatus by viewModel.awakeStatus.collectAsState()
+                val pingTimeMs by viewModel.pingTimeMs.collectAsState()
+
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        viewModel.pingDevice()
+                        delay(10000)
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -118,10 +136,18 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text("Awake Status", color = Color.LightGray, fontSize = 12.sp)
-                        Text("Awake", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = awakeStatus,
+                            fontWeight = FontWeight.Bold,
+                            color = if (awakeStatus == "Awake") Color.Green else Color.Red
+                        )
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    Text("4ms", color = Color.Green, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = pingTimeMs,
+                        color = Color.Green,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
