@@ -2,5 +2,17 @@
     <string name="app_name">RemoteShutdownForWindows</string>
     <string name="add_device_title">Add a Computer Device</string>
     <string name="add_device_info">Fill in the fields below to add a computer you want to remotely shut down or turn on. For details, consult your host PC or network administrator.</string>
-    <string name="add_device_note">Note: Wake-on-LAN port is usually 9 or 7. If you are not sure, you can leave it as 9.</string>
+    <string name="network_info_title">🧠 How to Find Network Details:</string>
+    <string name="network_mac_title">MAC Address</string>
+    <string name="network_mac_desc">Open Command Prompt → type getmac
+(e.g. 38:17:C8:5B:6A:90)</string>
+    <string name="network_ip_title">IP Address</string>
+    <string name="network_ip_desc">Open Command Prompt → type ipconfig → look for IPv4 Address
+(e.g. 192.168.1.42)</string>
+    <string name="network_netip_title">Network IP Address</string>
+    <string name="network_netip_desc">Same ipconfig output → use gateway or calculate broadcast address
+(e.g. 192.168.1.255)</string>
+    <string name="network_wol_title">Wake-on-LAN Port</string>
+    <string name="network_wol_desc">Default is 9 or 7
+(e.g. 9)</string>
 </resources>

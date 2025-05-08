@@ -58,13 +58,13 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color(0xFF23272A))
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         TopAppBar(
             title = { Text("PC Control", color = Color.White) },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black),
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = (Color(0xFF23272A))),
             navigationIcon = {
                 IconButton(onClick = { navController.navigate("addDevice") }) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
