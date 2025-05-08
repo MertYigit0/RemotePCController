@@ -5,11 +5,15 @@ This app allows you to shut down, reboot, sleep, lock, or wake your PC over a lo
 
 <table>
   <tr>
-    <th>Home Screen</th>
+    <th>Device Control Screen</th>
+    <th>Add Device Screen</th>
+    <th>İnfo Pop Up</th>
   </tr>
 
   <tr>
-    <td><img src="https://github.com/user-attachments/assets/c33b39f5-201d-4083-ad19-5d4fd4aa06f1" height="500"></td>
+    <td><img src="https://github.com/user-attachments/assets/8c769699-2d3a-432d-8e24-dbad4d6ed508" height="500"></td>
+    <td><img src="https://github.com/user-attachments/assets/5d1f207a-98a5-4024-add3-cca2ed90427d" height="500"></td>
+     <td><img src="https://github.com/user-attachments/assets/3081361e-d1d3-4b50-87cb-6f9a229c27e7" height="500"></td>
   </tr>
 </table>
 
