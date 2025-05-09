@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import android.widget.Toast
 
 @Composable
 fun AddDeviceScreen(viewModel: DeviceViewModel, navController: NavHostController) {
@@ -34,6 +35,16 @@ fun AddDeviceScreen(viewModel: DeviceViewModel, navController: NavHostController
     val networkIpAddress = viewModel.networkIpAddress.collectAsState()
     val wakeOnLanPort = viewModel.wakeOnLanPort.collectAsState()
     var showHelpDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    fun isValidDeviceName(name: String) = name.length in 1..15
+    fun isValidMac(mac: String) = mac.matches(Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))
+    fun isValidIp(ip: String) =
+        ip.matches(Regex("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)$"))
+
+    fun isValidPort(port: String): Boolean {
+        return port.toIntOrNull()?.let { it in 0..65535 } == true
+    }
 
     Column(
         modifier = Modifier
@@ -131,8 +142,49 @@ fun AddDeviceScreen(viewModel: DeviceViewModel, navController: NavHostController
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = {
-                viewModel.saveDevice()
-                navController.popBackStack() // Navigate back to the previous screen
+                when {
+                    deviceName.value.isBlank() || macAddress.value.isBlank() || ipAddress.value.isBlank() || networkIpAddress.value.isBlank() || wakeOnLanPort.value.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "Please fill all fields in correct format.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    !isValidDeviceName(deviceName.value) -> Toast.makeText(
+                        context,
+                        "Device name must be 1-15 characters.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    !isValidMac(macAddress.value) -> Toast.makeText(
+                        context,
+                        "Please enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    !isValidIp(ipAddress.value) -> Toast.makeText(
+                        context,
+                        "Invalid IP address format!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    !isValidIp(networkIpAddress.value) -> Toast.makeText(
+                        context,
+                        "Invalid network interface IP address!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    !isValidPort(wakeOnLanPort.value) -> Toast.makeText(
+                        context,
+                        "Port must be a number between 0-65535.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    else -> {
+                        viewModel.saveDevice()
+                        Toast.makeText(
+                            context,
+                            "Device added successfully",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        navController.popBackStack()
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth(0.9f)
