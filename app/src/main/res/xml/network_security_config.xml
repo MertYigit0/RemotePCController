@@ -4,4 +4,5 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">1</domain> <!-- Burada kendi IP'nizi kullanın -->
     </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

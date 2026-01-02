@@ -16,6 +16,7 @@ import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
+import retrofit2.http.POST
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.HttpURLConnection
@@ -81,16 +82,16 @@ class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewMode
 
     // Retrofit interface
     interface ShutdownApi {
-        @GET("shutdown")
+        @POST("shutdown")
         fun shutdownComputer(): Call<String>
 
-        @GET("restart")
+        @POST("restart")
         fun restartComputer(): Call<String>
 
-        @GET("sleep")
+        @POST("sleep")
         fun sleepComputer(): Call<String>
 
-        @GET("lock")
+        @POST("lock")
         fun lockComputer(): Call<String>
     }
 
@@ -209,30 +210,53 @@ class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewMode
 
     fun pingDevice() {
         val ip = ipAddress.value
-        if (ip.isEmpty()) return
+        if (ip.isEmpty()) {
+            viewModelScope.launch(Dispatchers.Main) {
+                awakeStatus.value = "Offline"
+                pingTimeMs.value = "--"
+            }
+            return
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
             try {
                 val startTime = System.currentTimeMillis()
-                val reachable = InetAddress.getByName(ip).isReachable(5000)
+                val url = URL("http://$ip:5000/")
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 3000
+                connection.readTimeout = 3000
+                connection.instanceFollowRedirects = false
+                
+                // Herhangi bir HTTP response code alabilirsek server online demektir
+                val responseCode = connection.responseCode
                 val endTime = System.currentTimeMillis()
                 val pingTime = (endTime - startTime).toInt()
 
                 withContext(Dispatchers.Main) {
-                    if (reachable) {
-                        awakeStatus.value = "Awake"
-                        pingTimeMs.value = "$pingTime ms"
-                    } else {
-                        awakeStatus.value = "Offline"
-                        pingTimeMs.value = "--"
-                    }
+                    // HTTP response code aldık, server online
+                    awakeStatus.value = "Awake"
+                    pingTimeMs.value = "$pingTime ms"
+                }
+            } catch (e: java.net.SocketTimeoutException) {
+                withContext(Dispatchers.Main) {
+                    awakeStatus.value = "Offline"
+                    pingTimeMs.value = "--"
+                }
+            } catch (e: java.net.ConnectException) {
+                withContext(Dispatchers.Main) {
+                    awakeStatus.value = "Offline"
+                    pingTimeMs.value = "--"
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    awakeStatus.value = "Error"
+                    awakeStatus.value = "Offline"
                     pingTimeMs.value = "--"
                 }
+            } finally {
+                connection?.disconnect()
             }
         }
     }
