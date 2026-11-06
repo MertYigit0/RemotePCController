@@ -5,12 +5,12 @@
     <string name="network_info_title">🧠 How to Find Network Details:</string>
     <string name="network_mac_title">MAC Address</string>
     <string name="network_mac_desc">Open Command Prompt → type getmac
-(e.g. 38:17:C8:5B:6A:90)</string>
+(e.g. AA:BB:CC:DD:EE:FF)</string>
     <string name="network_ip_title">IP Address</string>
     <string name="network_ip_desc">Open Command Prompt → type ipconfig → look for IPv4 Address
 (e.g. 192.168.1.42)</string>
     <string name="network_netip_title">Network IP Address</string>
-    <string name="network_netip_desc">Same ipconfig output → use gateway or calculate broadcast address
+    <string name="network_netip_desc">Broadcast address of your network (usually your IP with the last number set to 255)
 (e.g. 192.168.1.255)</string>
     <string name="network_wol_title">Wake-on-LAN Port</string>
     <string name="network_wol_desc">Default is 9 or 7
