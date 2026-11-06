@@ -96,8 +96,8 @@ def shutdown():
     os.system("shutdown /s /t 1")
     return 'Shutting down', 200
 
-@app.route('/reboot', methods=['POST'])
-def reboot():
+@app.route('/restart', methods=['POST'])
+def restart():
     os.system("shutdown /r /t 1")
     return 'Rebooting', 200
 
@@ -117,6 +117,6 @@ if __name__ == '__main__':
 
 > 🔒 Make sure your firewall allows incoming requests on the port you choose.
 
-You can host this script on your local network. The Android app will send HTTP POST requests to endpoints like `/shutdown`, `/reboot`, etc.
+You can host this script on your local network. The Android app will send HTTP POST requests to endpoints like `/shutdown`, `/restart`, etc.
 
 

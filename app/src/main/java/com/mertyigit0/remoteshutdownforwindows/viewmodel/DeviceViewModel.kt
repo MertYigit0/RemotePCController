@@ -1,21 +1,24 @@
 package com.mertyigit0.remoteshutdownforwindows.viewmodel
 
-import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.mertyigit0.remoteshutdownforwindows.data.ComputerModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
+import com.mertyigit0.remoteshutdownforwindows.data.ComputerModel
 import com.mertyigit0.remoteshutdownforwindows.data.DataStoreManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
 import retrofit2.http.POST
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -37,232 +40,175 @@ class DeviceViewModelFactory(
 }
 
 class DeviceViewModel(private val dataStoreManager: DataStoreManager) : ViewModel() {
+
+    /** Kaydedilmiş cihaz. Tüm komutlar bu değerleri kullanır (formdaki kaydedilmemiş değerleri değil). */
+    val savedDevice: StateFlow<ComputerModel> = dataStoreManager.device
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ComputerModel())
+
+    // Add Device formunun alanları
     val deviceName = MutableStateFlow("")
     val macAddress = MutableStateFlow("")
     val ipAddress = MutableStateFlow("")
     val networkIpAddress = MutableStateFlow("")
     val wakeOnLanPort = MutableStateFlow("")
 
-    init {
-        // Verileri DataStore'dan çekme işlemini burada başlatıyoruz.
-        viewModelScope.launch {
-            deviceName.value = dataStoreManager.deviceName.first() // İlk veriyi al
-            macAddress.value = dataStoreManager.macAddress.first() // İlk veriyi al
-            ipAddress.value = dataStoreManager.ipAddress.first() // İlk veriyi al
-            networkIpAddress.value = dataStoreManager.networkIpAddress.first() // İlk veriyi al
-            wakeOnLanPort.value = dataStoreManager.wakeOnLanPort.first() // İlk veriyi al
-        }
+    val awakeStatus = MutableStateFlow("Checking...")
+    val pingTimeMs = MutableStateFlow("--")
 
-        // Verilere abone olma işlemi (örneğin, değerler değişirse yeniden güncellenmesi sağlanır)
-        viewModelScope.launch {
-            dataStoreManager.deviceName.collect { deviceName.value = it }
-            dataStoreManager.macAddress.collect { macAddress.value = it }
-            dataStoreManager.ipAddress.collect { ipAddress.value = it }
-            dataStoreManager.networkIpAddress.collect { networkIpAddress.value = it }
-            dataStoreManager.wakeOnLanPort.collect { wakeOnLanPort.value = it }
-        }
+    /** UI'da Toast olarak gösterilecek tek seferlik mesajlar. */
+    private val _messages = Channel<String>(Channel.BUFFERED)
+    val messages = _messages.receiveAsFlow()
+
+    private var pingJob: Job? = null
+
+    init {
+        viewModelScope.launch { loadForm(dataStoreManager.device.first()) }
+    }
+
+    /** Formu kaydedilmiş değerlerle doldurur (kaydedilmeden çıkılan düzenlemeleri atar). */
+    fun resetForm() = loadForm(savedDevice.value)
+
+    private fun loadForm(device: ComputerModel) {
+        deviceName.value = device.deviceName
+        macAddress.value = device.macAddress
+        ipAddress.value = device.ipAddress
+        networkIpAddress.value = device.networkIpAddress
+        wakeOnLanPort.value = device.wakeOnLanPort
     }
 
     fun saveDevice() {
         val computerModel = ComputerModel(
-            deviceName.value,
-            macAddress.value,
-            ipAddress.value,
-            networkIpAddress.value,
-            wakeOnLanPort.value
+            deviceName.value.trim(),
+            macAddress.value.trim(),
+            ipAddress.value.trim(),
+            networkIpAddress.value.trim(),
+            wakeOnLanPort.value.trim()
         )
-
         viewModelScope.launch {
             dataStoreManager.saveDevice(computerModel)
         }
     }
 
-
-
-
-    // Retrofit interface
+    // Retrofit interface – README'deki sunucu POST bekliyor
     interface ShutdownApi {
         @POST("shutdown")
-        fun shutdownComputer(): Call<String>
+        fun shutdownComputer(): Call<ResponseBody>
 
         @POST("restart")
-        fun restartComputer(): Call<String>
+        fun restartComputer(): Call<ResponseBody>
 
         @POST("sleep")
-        fun sleepComputer(): Call<String>
+        fun sleepComputer(): Call<ResponseBody>
 
         @POST("lock")
-        fun lockComputer(): Call<String>
+        fun lockComputer(): Call<ResponseBody>
     }
 
-    fun getApiService(): ShutdownApi {
-        val ip = ipAddress.value
-        val baseUrl = "http://$ip:5000/"
-
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .addConverterFactory(GsonConverterFactory.create())
+    private fun getApiService(ip: String): ShutdownApi =
+        Retrofit.Builder()
+            .baseUrl("http://$ip:5000/")
             .build()
+            .create(ShutdownApi::class.java)
 
-        return retrofit.create(ShutdownApi::class.java)
-    }
-
-    fun shutdownPC() {
-        val api = getApiService()
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val response = api.shutdownComputer().execute()
-                if (response.isSuccessful) {
-                    // Başarılı durum
-                } else {
-                    // Hata durumu
-                }
+    private fun sendCommand(label: String, call: (ShutdownApi) -> Call<ResponseBody>) {
+        val ip = savedDevice.value.ipAddress
+        if (ip.isBlank()) {
+            _messages.trySend("Please add a device first.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val message = try {
+                val response = call(getApiService(ip)).execute()
+                response.body()?.close()
+                response.errorBody()?.close()
+                if (response.isSuccessful) "$label command sent"
+                else "$label failed (HTTP ${response.code()})"
             } catch (e: Exception) {
                 e.printStackTrace()
+                "$label failed: PC unreachable"
             }
+            _messages.send(message)
         }
     }
 
-    fun rebootPC() {
-        val api = getApiService()
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val response = api.restartComputer().execute()
-                if (response.isSuccessful) {
-                    // Başarılı durum
-                } else {
-                    // Hata durumu
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun putPCToSleep() {
-        val api = getApiService()
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val response = api.sleepComputer().execute()
-                if (response.isSuccessful) {
-                    // Başarılı durum
-                } else {
-                    // Hata durumu
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun lockPC() {
-        val api = getApiService()
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val response = api.lockComputer().execute()
-                if (response.isSuccessful) {
-                    // Başarılı durum
-                } else {
-                    // Hata durumu
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
+    fun shutdownPC() = sendCommand("Shutdown") { it.shutdownComputer() }
+    fun rebootPC() = sendCommand("Reboot") { it.restartComputer() }
+    fun putPCToSleep() = sendCommand("Sleep") { it.sleepComputer() }
+    fun lockPC() = sendCommand("Lock") { it.lockComputer() }
 
     fun turnOnPC() {
-        val macAddress = macAddress.value.replace(":", "").replace("-", "")
+        val device = savedDevice.value
+        val mac = device.macAddress.replace(":", "").replace("-", "")
 
-        if (macAddress.length != 12) {
-            println("Hatalı MAC adresi!")
+        if (!mac.matches(Regex("[0-9A-Fa-f]{12}"))) {
+            _messages.trySend("Invalid MAC address. Please check device settings.")
+            return
+        }
+        if (device.networkIpAddress.isBlank()) {
+            _messages.trySend("Network IP address is missing. Please check device settings.")
             return
         }
 
-        val bytes = ByteArray(102)
-        for (i in 0 until 6) bytes[i] = 0xFF.toByte() // 6 byte FF
-        val macBytes = macAddress.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val macBytes = mac.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val bytes = ByteArray(6 + 16 * macBytes.size)
+        for (i in 0 until 6) bytes[i] = 0xFF.toByte()
         for (i in 6 until bytes.size step macBytes.size) {
-            System.arraycopy(macBytes, 0, bytes, i, macBytes.size) // 16 kez MAC ekleniyor
+            System.arraycopy(macBytes, 0, bytes, i, macBytes.size)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val address = InetAddress.getByName(networkIpAddress.value)
-                val port = wakeOnLanPort.value.toIntOrNull() ?: 9 // Default WOL port 9
+            val message = try {
+                val address = InetAddress.getByName(device.networkIpAddress)
+                val port = device.wakeOnLanPort.toIntOrNull()?.takeIf { it in 1..65535 } ?: 9
                 DatagramSocket().use { socket ->
-                    val packet = DatagramPacket(bytes, bytes.size, address, port)
-                    socket.send(packet)
+                    // Broadcast adresine (örn. 192.168.1.255) gönderim için gerekli; yoksa EACCES
+                    socket.broadcast = true
+                    socket.send(DatagramPacket(bytes, bytes.size, address, port))
                 }
-                println("Wake-on-LAN paketi gönderildi!")
+                "Wake-on-LAN packet sent"
             } catch (e: Exception) {
                 e.printStackTrace()
+                "Failed to send Wake-on-LAN packet"
             }
+            _messages.send(message)
         }
     }
 
-
-
-
-    val awakeStatus = MutableStateFlow("Checking...")
-    val pingTimeMs = MutableStateFlow("--")
-
+    /**
+     * Sunucuya HTTP isteği atarak cihazın açık olup olmadığını kontrol eder.
+     * ICMP (InetAddress.isReachable) Android'de root olmadan çalışmadığı için kullanılmıyor.
+     */
     fun pingDevice() {
-        val ip = ipAddress.value
-        if (ip.isEmpty()) {
-            viewModelScope.launch(Dispatchers.Main) {
-                awakeStatus.value = "Offline"
-                pingTimeMs.value = "--"
-            }
+        val ip = savedDevice.value.ipAddress
+        if (ip.isBlank()) {
+            awakeStatus.value = "No device"
+            pingTimeMs.value = "--"
             return
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        // Önceki ping hâlâ sürüyorsa iptal et; eski sonuç yenisinin üzerine yazmasın
+        pingJob?.cancel()
+        pingJob = viewModelScope.launch(Dispatchers.IO) {
             var connection: HttpURLConnection? = null
-            try {
+            val result = try {
                 val startTime = System.currentTimeMillis()
-                val url = URL("http://$ip:5000/")
-                connection = url.openConnection() as HttpURLConnection
+                connection = URL("http://$ip:5000/").openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.connectTimeout = 3000
                 connection.readTimeout = 3000
                 connection.instanceFollowRedirects = false
-                
-                // Herhangi bir HTTP response code alabilirsek server online demektir
-                val responseCode = connection.responseCode
-                val endTime = System.currentTimeMillis()
-                val pingTime = (endTime - startTime).toInt()
-
-                withContext(Dispatchers.Main) {
-                    // HTTP response code aldık, server online
-                    awakeStatus.value = "Awake"
-                    pingTimeMs.value = "$pingTime ms"
-                }
-            } catch (e: java.net.SocketTimeoutException) {
-                withContext(Dispatchers.Main) {
-                    awakeStatus.value = "Offline"
-                    pingTimeMs.value = "--"
-                }
-            } catch (e: java.net.ConnectException) {
-                withContext(Dispatchers.Main) {
-                    awakeStatus.value = "Offline"
-                    pingTimeMs.value = "--"
-                }
+                // Herhangi bir HTTP yanıtı (404 dahil) sunucunun açık olduğunu gösterir
+                connection.responseCode
+                "Awake" to "${System.currentTimeMillis() - startTime} ms"
             } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    awakeStatus.value = "Offline"
-                    pingTimeMs.value = "--"
-                }
+                "Offline" to "--"
             } finally {
                 connection?.disconnect()
             }
+            withContext(Dispatchers.Main) {
+                awakeStatus.value = result.first
+                pingTimeMs.value = result.second
+            }
         }
     }
-
-
-
-
-
 }

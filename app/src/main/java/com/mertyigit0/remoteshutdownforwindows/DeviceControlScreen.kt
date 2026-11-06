@@ -11,10 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,7 +40,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun DeviceControlScreen() {
     val context = LocalContext.current
-    val dataStoreManager = DataStoreManager(context)
+    val dataStoreManager = remember { DataStoreManager(context.applicationContext) }
     val deviceViewModel: DeviceViewModel = viewModel(
         factory = DeviceViewModelFactory(dataStoreManager)
     )
@@ -53,7 +60,39 @@ fun DeviceControlScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceControlContent(navController: NavHostController, viewModel: DeviceViewModel) {
-    val selectedDevice = viewModel.deviceName.collectAsState(initial = "None")
+    val savedDevice by viewModel.savedDevice.collectAsState()
+    val context = LocalContext.current
+    var pendingAction by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+
+    // IP değişince hemen yeniden ping at, sonra 10 sn'de bir tekrarla.
+    // Yalnızca uygulama ekrandayken (RESUMED) çalışır; arka plana atılınca durur, dönünce hemen ping atar.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(savedDevice.ipAddress, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.pingDevice()
+                delay(10000)
+            }
+        }
+    }
+
+    pendingAction?.let { (label, action) ->
+        AlertDialog(
+            onDismissRequest = { pendingAction = null },
+            title = { Text("$label PC?") },
+            text = { Text("Are you sure you want to ${label.lowercase()} ${savedDevice.deviceName.ifBlank { "the PC" }}?") },
+            confirmButton = {
+                TextButton(onClick = { pendingAction = null; action() }) { Text(label) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingAction = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -79,7 +118,7 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
             contentDescription = "Power",
             modifier = Modifier
                 .size(100.dp)
-                .clickable { viewModel.shutdownPC() } // Tıklanınca ViewModel fonksiyonunu çağır
+                .clickable { pendingAction = "Shut down" to viewModel::shutdownPC }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -102,7 +141,7 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
                     Column {
                         Text("Selected Device", color = Color.LightGray, fontSize = 12.sp)
                         Text(
-                            selectedDevice.value,
+                            savedDevice.deviceName.ifBlank { "None" },
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -116,13 +155,6 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
 
                 val awakeStatus by viewModel.awakeStatus.collectAsState()
                 val pingTimeMs by viewModel.pingTimeMs.collectAsState()
-
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        viewModel.pingDevice()
-                        delay(10000)
-                    }
-                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -154,19 +186,19 @@ fun DeviceControlContent(navController: NavHostController, viewModel: DeviceView
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        ActionButtons(viewModel)
+        ActionButtons(viewModel, onReboot = { pendingAction = "Reboot" to viewModel::rebootPC })
     }
 }
 
 @Composable
-fun ActionButtons(viewModel: DeviceViewModel) {
+fun ActionButtons(viewModel: DeviceViewModel, onReboot: () -> Unit) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             ActionButton("Turn On", R.drawable.powerbutton) { viewModel.turnOnPC() }
-            ActionButton("Reboot", R.drawable.refresh) { viewModel.rebootPC() }
+            ActionButton("Reboot", R.drawable.refresh, onReboot)
         }
         Spacer(modifier = Modifier.height(16.dp))
         Row(

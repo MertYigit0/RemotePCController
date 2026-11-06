@@ -23,7 +23,6 @@ import com.mertyigit0.remoteshutdownforwindows.data.DataStoreManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import android.widget.Toast
 
@@ -37,13 +36,19 @@ fun AddDeviceScreen(viewModel: DeviceViewModel, navController: NavHostController
     var showHelpDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    fun isValidDeviceName(name: String) = name.length in 1..15
-    fun isValidMac(mac: String) = mac.matches(Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))
+    // Ekrana her girişte formu kaydedilmiş değerlerle başlat (kaydedilmeden çıkılan düzenlemeler atılır)
+    LaunchedEffect(Unit) { viewModel.resetForm() }
+
+    fun isValidDeviceName(name: String) = name.trim().length in 1..15
+    // Windows "getmac" çıktısı tire kullanır (AA-BB-CC-DD-EE-FF); iki biçimi de kabul et
+    fun isValidMac(mac: String) =
+        mac.trim().matches(Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")) ||
+            mac.trim().matches(Regex("^([0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$"))
     fun isValidIp(ip: String) =
-        ip.matches(Regex("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)$"))
+        ip.trim().matches(Regex("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?\\d\\d?)$"))
 
     fun isValidPort(port: String): Boolean {
-        return port.toIntOrNull()?.let { it in 0..65535 } == true
+        return port.trim().toIntOrNull()?.let { it in 1..65535 } == true
     }
 
     Column(
@@ -172,7 +177,7 @@ fun AddDeviceScreen(viewModel: DeviceViewModel, navController: NavHostController
                     ).show()
                     !isValidPort(wakeOnLanPort.value) -> Toast.makeText(
                         context,
-                        "Port must be a number between 0-65535.",
+                        "Port must be a number between 1-65535.",
                         Toast.LENGTH_SHORT
                     ).show()
                     else -> {

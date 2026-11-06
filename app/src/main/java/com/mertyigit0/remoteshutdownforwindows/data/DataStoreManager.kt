@@ -36,6 +36,17 @@ class DataStoreManager(context: Context) {
             preferences[WAKE_ON_LAN_PORT_KEY] ?: ""
         }
 
+    val device: Flow<ComputerModel> = dataStore.data
+        .map { preferences ->
+            ComputerModel(
+                deviceName = preferences[DEVICE_NAME_KEY] ?: "",
+                macAddress = preferences[MAC_ADDRESS_KEY] ?: "",
+                ipAddress = preferences[IP_ADDRESS_KEY] ?: "",
+                networkIpAddress = preferences[NETWORK_IP_ADDRESS_KEY] ?: "",
+                wakeOnLanPort = preferences[WAKE_ON_LAN_PORT_KEY] ?: ""
+            )
+        }
+
     suspend fun saveDevice(computerModel: ComputerModel) {
         dataStore.edit { preferences ->
             preferences[DEVICE_NAME_KEY] = computerModel.deviceName
